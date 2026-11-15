@@ -6,20 +6,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Unzip project
-        run: unzip -q H96Remote.zip
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - name: Find and unzip project
+        run: |
+          echo "Files in repository:"
+          ls -la
+          f=$(ls *.zip 2>/dev/null | head -n 1)
+          if [ -z "$f" ]; then echo "ERROR: no .zip file found in repository"; exit 1; fi
+          echo "Using zip: $f"
+          unzip -q -o "$f" -d src
+          g=$(find src -name gradlew | head -n 1)
+          if [ -z "$g" ]; then echo "ERROR: gradlew not found inside zip"; exit 1; fi
+          echo "PROJECT=$(dirname "$g")" >> $GITHUB_ENV
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@v3
       - name: Build
-        working-directory: H96Remote
         run: |
+          cd "$PROJECT"
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: H96Remote-apk
-          path: H96Remote/app/build/outputs/apk/debug/*.apk
+          path: src/**/app/build/outputs/apk/debug/*.apk
