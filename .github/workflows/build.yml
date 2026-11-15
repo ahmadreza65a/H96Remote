@@ -7,28 +7,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Find and unzip project
+      - name: Prepare project
         run: |
-          echo "Files in repository:"
+          echo "===== Files in repository ====="
           ls -la
-          f=$(ls *.zip 2>/dev/null | head -n 1)
-          if [ -z "$f" ]; then echo "ERROR: no .zip file found in repository"; exit 1; fi
-          echo "Using zip: $f"
-          unzip -q -o "$f" -d src
-          g=$(find src -name gradlew | head -n 1)
-          if [ -z "$g" ]; then echo "ERROR: gradlew not found inside zip"; exit 1; fi
-          echo "PROJECT=$(dirname "$g")" >> $GITHUB_ENV
+          if [ -f gradlew ]; then
+            echo "Project files found directly in repository"
+            echo "PROJECT=." >> $GITHUB_ENV
+          else
+            f=$(ls *.zip 2>/dev/null | head -n 1)
+            if [ -z "$f" ]; then echo "ERROR: No zip file and no project files in repository"; exit 1; fi
+            echo "Using zip: $f"
+            unzip -q -o "$f" -d src
+            g=$(find src -name gradlew | head -n 1)
+            if [ -z "$g" ]; then echo "ERROR: gradlew not found inside zip"; exit 1; fi
+            echo "PROJECT=$(dirname "$g")" >> $GITHUB_ENV
+          fi
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - name: Build
         run: |
           cd "$PROJECT"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp app/build/outputs/apk/debug/*.apk "$GITHUB_WORKSPACE/out/"
       - uses: actions/upload-artifact@v4
         with:
           name: H96Remote-apk
-          path: src/**/app/build/outputs/apk/debug/*.apk
+          path: out/*.apk
